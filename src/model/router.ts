@@ -1,13 +1,23 @@
 import { BaseProvider } from "./base-provider";
-import { GenerationType, ModelRequest } from "./types";
+import { GenerationType, ModelRequest, ModelResponse } from "./types";
 
 export class ModelRouter {
   constructor(private provider: BaseProvider) {}
 
-  async route(request: ModelRequest, generationType: GenerationType) {
-    if (generationType === GenerationType.STREAM) {
-      return this.provider.stream(request);
+  async route(
+    request: ModelRequest,
+    generationType: GenerationType,
+  ): Promise<ModelResponse> {
+    if (generationType === GenerationType.STREAM && this.provider.stream) {
+      let content = "";
+
+      for await (const chunk of this.provider.stream(request)) {
+        content += chunk;
+      }
+
+      return { content };
     }
+
     return this.provider.generate(request);
   }
 }

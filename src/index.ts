@@ -1,37 +1,30 @@
 import { config } from "dotenv";
 config();
 
-import { Role, Message } from "./model/types";
 import { OpenAIProvider } from "./model/openai-provider";
-
-// --- OpenAI-compatible (also works for opencode, together, etc.) ---
-const openaiProvider = new OpenAIProvider("opencode");
+import { ModelRouter } from "./model/router";
+import { Agent } from "./agent/runtime";
+import { GenerationType } from "./model/types";
 
 async function main() {
-  const messages = [
-    { role: Role.SYSTEM, content: "Be concise and helpful and exact" },
-    { role: Role.USER, content: "Tell me a random statement" },
-  ];
+  const openaiProvider = new OpenAIProvider("opencode");
+  const router = new ModelRouter(openaiProvider);
 
-  const model = process.env.OPENAI_MODEL || "gpt-3.5-turbo";
+  const agent = new Agent(
+    "CoreAgent",
+    "Be concise, helpful, and exact.",
+    router,
+    "Basic autonomous reasoning agent",
+    GenerationType.GENERATE,
+  );
 
-  console.log("=== generate() ===");
-  const response = await openaiProvider.generate({ model, messages });
-  console.log(response);
+  const result = await agent.run(
+    "THINK 5 TIMES ABOUT A RANDOM STATEMENT AND TELL ME ",
+    true,
+  );
 
-  const nextMessage: Message[] = [
-    ...messages,
-    ...(response.content !== null
-      ? [{ role: Role.ASSISTANT, content: response.content }]
-      : []),
-    { role: Role.USER, content: "Now tell me the exact opposite" },
-  ];
-
-  const secondResponse = await openaiProvider.generate({
-    model,
-    messages: nextMessage,
-  });
-  console.log(secondResponse); // newline after stream
+  console.log("\n=== FINAL ANSWER ===");
+  console.log(result);
 }
 
 main().catch(console.error);
