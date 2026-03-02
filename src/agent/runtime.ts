@@ -1,4 +1,5 @@
 import { ModelRouter } from "../model/router";
+import { SessionService } from "../sessions/session-service";
 import { GenerationType, Message, Role, ModelRequest } from "../model/types";
 import {
   AgentResponse,
@@ -7,6 +8,8 @@ import {
   LOOP_SYSTEM_PROMPT,
   MAX_ITERS,
 } from "./types";
+import { SessionServiceType } from "../sessions/types";
+import { SQLiteSessionService } from "../sessions/sqlite-sessions";
 
 export class Agent {
   readonly name: string;
@@ -14,6 +17,7 @@ export class Agent {
   readonly modelRouter: ModelRouter;
   readonly description?: string;
   readonly generationMode: GenerationType;
+  private sessionService: SessionService;
 
   constructor(
     name: string,
@@ -21,12 +25,18 @@ export class Agent {
     modelRouter: ModelRouter,
     description?: string,
     generationMode: GenerationType = GenerationType.GENERATE,
+    sessionServiceType: SessionServiceType = SessionServiceType.SQLITE,
   ) {
     this.name = name;
     this.systemPrompt = systemPrompt;
     this.modelRouter = modelRouter;
     this.description = description;
     this.generationMode = generationMode;
+    if (sessionServiceType === SessionServiceType.SQLITE) {
+      this.sessionService = new SQLiteSessionService();
+    } else {
+      throw new Error("A session service is required to run the agent.");
+    }
   }
 
   private async fetchAndParse(
@@ -88,7 +98,11 @@ export class Agent {
     }
   }
 
-  async run(userQuery: string, verbose = false): Promise<AgentResponse> {
+  async run(
+    userQuery: string,
+    verbose = false,
+    sessionId?: string,
+  ): Promise<AgentResponse> {
     if (!process.env.OPENAI_MODEL) {
       throw new Error(
         "OPENAI_MODEL env var not set. Please set it to the name of the model you want to use.",
@@ -96,12 +110,15 @@ export class Agent {
     }
 
     const model = process.env.OPENAI_MODEL;
+    const activeSessionId = sessionId ?? (await this.sessionService.createSession());
+    const history = await this.sessionService.getMessages(activeSessionId);
 
     const messages: Message[] = [
       {
         role: Role.SYSTEM,
-        content: `${LOOP_SYSTEM_PROMPT}\n\n${this.systemPrompt}`,
+        content: `${LOOP_SYSTEM_PROMPT}\n${this.systemPrompt}`,
       },
+      ...history,
       { role: Role.USER, content: userQuery },
     ];
 
@@ -127,8 +144,13 @@ export class Agent {
       }
 
       if (parsed.action === "final") {
+        const answer = parsed.answer ?? "No final answer provided.";
+        
+        await this.sessionService.addMessage(activeSessionId, Role.USER, userQuery);
+        await this.sessionService.addMessage(activeSessionId, Role.ASSISTANT, answer);
         return {
-          answer: parsed.answer ?? "No final answer provided.",
+          sessionId: activeSessionId,
+          answer,
           ...(verbose && { iterations }),
           inputTokens: totalInputTokens,
           outputTokens: totalOutputTokens,

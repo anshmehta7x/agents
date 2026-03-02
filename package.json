@@ -6,14 +6,17 @@
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "view-db": "node scripts/view-db.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.3.3",
+    "@types/uuid": "^10.0.0",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
@@ -21,7 +24,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@google/generative-ai": "^0.24.1",
+    "better-sqlite3": "^12.6.2",
     "dotenv": "^17.3.1",
-    "openai": "^6.25.0"
+    "openai": "^6.25.0",
+    "uuid": "^13.0.0"
   }
 }

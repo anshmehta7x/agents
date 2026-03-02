@@ -1,4 +1,5 @@
 export type AgentResponse = {
+  sessionId: string;
   answer: string;
   iterations?: string[];
   inputTokens: number;
