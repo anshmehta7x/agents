@@ -7,7 +7,11 @@ import { Agent } from "./agent/runtime";
 import { GenerationType } from "./model/types";
 
 async function main() {
-  const openaiProvider = new OpenAIProvider("opencode");
+  const openaiProvider = new OpenAIProvider(
+    "opencode",
+    process.env.OPENAI_ENDPOINT!,
+    process.env.OPENAI_API_KEY!,
+  );
   const router = new ModelRouter(openaiProvider);
 
   const agent = new Agent(
@@ -15,11 +19,11 @@ async function main() {
     "Be concise, helpful, and exact.",
     router,
     "Basic autonomous reasoning agent",
-    GenerationType.GENERATE,
+    GenerationType.STREAM,
   );
 
   const result = await agent.run(
-    "THINK 5 TIMES ABOUT A RANDOM STATEMENT AND TELL ME ",
+    "THINK 2 TIMES ABOUT A RANDOM STATEMENT AND TELL ME ",
     true,
   );
 

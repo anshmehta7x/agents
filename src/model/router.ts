@@ -15,7 +15,10 @@ export class ModelRouter {
         content += chunk;
       }
 
-      return { content };
+      return {
+        content,
+        usage: this.provider.getLastStreamUsage?.(),
+      };
     }
 
     return this.provider.generate(request);

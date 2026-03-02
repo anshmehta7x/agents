@@ -120,6 +120,10 @@ export class Agent {
 
       if (verbose) {
         iterations.push(parsed.thought);
+        console.log(`[${this.name}] Iteration ${iteration + 1}: ${parsed.thought}`);
+        console.log(
+          `[${this.name}] Iteration ${iteration + 1} tokens: +in ${inputTokens}, +out ${outputTokens}, total in ${totalInputTokens}, total out ${totalOutputTokens}`,
+        );
       }
 
       if (parsed.action === "final") {
