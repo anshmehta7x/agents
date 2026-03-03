@@ -14,7 +14,7 @@ import { MCPClient } from "./tools";
 
 async function main() {
   const openaiProvider = new OpenAIProvider(
-    "opencode",
+    "openrouter",
     process.env.OPENAI_ENDPOINT!,
     process.env.OPENAI_API_KEY!,
   );
@@ -49,7 +49,8 @@ async function main() {
   const mcpClient = new MCPClient({
     name: "spotify-mcp-server",
     transport: "url",
-    url: "https://mcp-spotify.onrender.com/mcp",});
+    url: "https://mcp-spotify.onrender.com/mcp",
+  });
   const mcpTools = await mcpClient.discoverTools();
   toolRegistry.registerAll(mcpTools);
 
@@ -65,7 +66,7 @@ async function main() {
   );
 
   const firstResult = await agent.run(
-    "What is the current date and time? Also, what is 42 * 17 + 3? Also log in to my spotify and give me the code",
+    "Hey, take the current year, then multiply it with 32523423423",
     true,
   );
 
