@@ -11,14 +11,21 @@ import { dateTimeTool } from "./tools/local/datetime-tool";
 import { calculatorTool } from "./tools/local/calculator-tool";
 import { createTool } from "./tools/types";
 import { MCPClient } from "./tools";
+import { GeminiProvider } from "./model/gemini-provider";
 
 async function main() {
-  const openaiProvider = new OpenAIProvider(
-    "openrouter",
-    process.env.OPENAI_ENDPOINT!,
-    process.env.OPENAI_API_KEY!,
+  // const openaiProvider = new OpenAIProvider(
+  //   "openrouter",
+  //   process.env.OPENAI_ENDPOINT!,
+  //   process.env.OPENAI_API_KEY!,
+  //   process.env.OPENAI_MODEL!
+  // );
+
+  const geminiProvider = new GeminiProvider(
+    process.env.GEMINI_API_KEY!,
+    process.env.GEMINI_MODEL!
   );
-  const router = new ModelRouter(openaiProvider);
+  const router = new ModelRouter(geminiProvider);
 
   // ── Set up tool registry ──────────────────────────────────
   const toolRegistry = new ToolRegistry();

@@ -16,7 +16,7 @@ export interface Message {
 }
 
 export interface ModelRequest {
-  model: string;
+  model?: string;
   messages: Message[];
   maxTokens?: number;
   temperature?: number;

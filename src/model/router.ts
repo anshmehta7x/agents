@@ -4,6 +4,10 @@ import { GenerationType, ModelRequest, ModelResponse } from "./types";
 export class ModelRouter {
   constructor(private provider: BaseProvider) {}
 
+  get model(): string {
+    return this.provider.model;
+  }
+
   async route(
     request: ModelRequest,
     generationType: GenerationType,

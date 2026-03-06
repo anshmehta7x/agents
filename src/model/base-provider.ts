@@ -4,7 +4,7 @@ export interface BaseProvider {
   name: string;
   endpoint?: string;
   apiKey: string;
-  defaultModel?: string;
+  model: string;
 
   generate: (request: ModelRequest) => Promise<ModelResponse>;
   stream: (request: ModelRequest) => AsyncGenerator<string, void, unknown>;

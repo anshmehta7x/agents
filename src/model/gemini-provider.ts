@@ -6,30 +6,30 @@ export interface GeminiProviderOptions {
   name?: string;
   endpoint?: string;
   apiKey?: string;
-  defaultModel?: string;
+  model?: string;
 }
 
 export class GeminiProvider implements BaseProvider {
   name: string;
   endpoint?: string;
   apiKey: string;
-  defaultModel?: string;
+  model: string;
   client: GoogleGenerativeAI;
   private lastStreamUsage?: ModelResponse["usage"];
 
-  constructor(apiKey?: string, name?: string, defaultModel?: string);
+  constructor(apiKey?: string, name?: string, model?: string);
   constructor(options?: GeminiProviderOptions);
   constructor(
     apiKeyOrOptions?: string | GeminiProviderOptions,
     name?: string,
-    defaultModel?: string,
+    model?: string,
   ) {
     const options: GeminiProviderOptions =
       typeof apiKeyOrOptions === "string"
         ? {
             apiKey: apiKeyOrOptions,
             name,
-            defaultModel,
+            model,
           }
         : apiKeyOrOptions ?? {};
 
@@ -43,10 +43,11 @@ export class GeminiProvider implements BaseProvider {
       process.env.GEMINI_API_KEY ??
       process.env.GOOGLE_API_KEY ??
       "";
-    this.defaultModel =
-      options.defaultModel ??
+    this.model =
+      options.model ??
       process.env.GEMINI_MODEL ??
-      process.env.GOOGLE_MODEL;
+      process.env.GOOGLE_MODEL ??
+      "";
 
     if (!this.apiKey) {
       throw new Error(
@@ -54,18 +55,17 @@ export class GeminiProvider implements BaseProvider {
       );
     }
 
+    if (!this.model) {
+      throw new Error(
+        "Gemini model not set. Provide via constructor or GEMINI_MODEL env var.",
+      );
+    }
+
     this.client = new GoogleGenerativeAI(this.apiKey);
   }
 
   private resolveModel(requestModel?: string): string {
-    const model = requestModel || this.defaultModel;
-    if (!model) {
-      throw new Error(
-        "Model not provided. Set request.model or configure defaultModel/GEMINI_MODEL.",
-      );
-    }
-
-    return model;
+    return requestModel || this.model;
   }
 
   private validateRequest(request: ModelRequest): void {

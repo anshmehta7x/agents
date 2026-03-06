@@ -6,24 +6,24 @@ export interface OpenAIProviderOptions {
   name?: string;
   endpoint?: string;
   apiKey?: string;
-  defaultModel?: string;
+  model?: string;
 }
 
 export class OpenAIProvider implements BaseProvider {
   name: string;
   endpoint: string;
   apiKey: string;
-  defaultModel?: string;
+  model: string;
   client: OpenAI;
   private lastStreamUsage?: ModelResponse["usage"];
 
-  constructor(name: string, endpoint: string, apiKey: string, defaultModel?: string);
+  constructor(name: string, endpoint: string, apiKey: string, model: string);
   constructor(options?: OpenAIProviderOptions);
   constructor(
     nameOrOptions?: string | OpenAIProviderOptions,
     endpoint?: string,
     apiKey?: string,
-    defaultModel?: string,
+    model?: string,
   ) {
     const options: OpenAIProviderOptions =
       typeof nameOrOptions === "string"
@@ -31,7 +31,7 @@ export class OpenAIProvider implements BaseProvider {
             name: nameOrOptions,
             endpoint,
             apiKey,
-            defaultModel,
+            model,
           }
         : nameOrOptions ?? {};
 
@@ -42,11 +42,17 @@ export class OpenAIProvider implements BaseProvider {
       process.env.OPENAI_BASE_URL ??
       "https://api.openai.com/v1";
     this.apiKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? "";
-    this.defaultModel = options.defaultModel ?? process.env.OPENAI_MODEL;
+    this.model = options.model ?? process.env.OPENAI_MODEL ?? "";
 
     if (!this.apiKey) {
       throw new Error(
         "OpenAI API key not set. Provide via constructor options or OPENAI_API_KEY env var.",
+      );
+    }
+
+    if (!this.model) {
+      throw new Error(
+        "OpenAI model not set. Provide via constructor options or OPENAI_MODEL env var.",
       );
     }
 
@@ -57,14 +63,7 @@ export class OpenAIProvider implements BaseProvider {
   }
 
   private resolveModel(requestModel?: string): string {
-    const model = requestModel || this.defaultModel;
-    if (!model) {
-      throw new Error(
-        "Model not provided. Set request.model or configure defaultModel/OPENAI_MODEL.",
-      );
-    }
-
-    return model;
+    return requestModel || this.model;
   }
 
   private validateRequest(request: ModelRequest): void {

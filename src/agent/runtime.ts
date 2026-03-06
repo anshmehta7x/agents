@@ -68,7 +68,6 @@ export class Agent {
 
   private async fetchAndParse(
     messages: Message[],
-    model: string,
   ): Promise<{
     parsed: LoopResponse;
     content: string;
@@ -76,7 +75,7 @@ export class Agent {
     outputTokens: number;
     hadFormatRetry: boolean;
   }> {
-    const request: ModelRequest = { model, messages };
+    const request: ModelRequest = { messages };
     const response = await this.modelRouter.route(request, this.generationMode);
 
     if (!response.content) throw new Error("Empty model response.");
@@ -102,7 +101,7 @@ export class Agent {
       ];
 
       const retryResponse = await this.modelRouter.route(
-        { model, messages: correctionMessages },
+        { messages: correctionMessages },
         this.generationMode,
       );
 
@@ -136,11 +135,6 @@ export class Agent {
     verbose = false,
     sessionId?: string,
   ): Promise<AgentResponse> {
-    if (!process.env.OPENAI_MODEL) {
-      throw new Error("OPENAI_MODEL env var not set.");
-    }
-
-    const model = process.env.OPENAI_MODEL;
     const activeSessionId =
       sessionId ?? (await this.sessionService.createSession());
     const history = await this.sessionService.getMessages(activeSessionId);
@@ -182,7 +176,7 @@ export class Agent {
         const iterStart = Date.now();
 
         const { parsed, content, inputTokens, outputTokens, hadFormatRetry } =
-          await this.fetchAndParse(messages, model);
+          await this.fetchAndParse(messages);
 
         totalInputTokens += inputTokens;
         totalOutputTokens += outputTokens;

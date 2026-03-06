@@ -6,24 +6,24 @@ export interface AnthropicProviderOptions {
   name?: string;
   endpoint?: string;
   apiKey?: string;
-  defaultModel?: string;
+  model?: string;
 }
 
 export class AnthropicProvider implements BaseProvider {
   name: string;
   endpoint?: string;
   apiKey: string;
-  defaultModel?: string;
+  model: string;
   client: Anthropic;
   private lastStreamUsage?: ModelResponse["usage"];
 
-  constructor(apiKey?: string, name?: string, endpoint?: string, defaultModel?: string);
+  constructor(apiKey?: string, name?: string, endpoint?: string, model?: string);
   constructor(options?: AnthropicProviderOptions);
   constructor(
     apiKeyOrOptions?: string | AnthropicProviderOptions,
     name?: string,
     endpoint?: string,
-    defaultModel?: string,
+    model?: string,
   ) {
     const options: AnthropicProviderOptions =
       typeof apiKeyOrOptions === "string"
@@ -31,18 +31,24 @@ export class AnthropicProvider implements BaseProvider {
             apiKey: apiKeyOrOptions,
             name,
             endpoint,
-            defaultModel,
+            model,
           }
         : apiKeyOrOptions ?? {};
 
     this.name = options.name ?? "anthropic";
     this.endpoint = options.endpoint ?? process.env.ANTHROPIC_ENDPOINT;
     this.apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
-    this.defaultModel = options.defaultModel ?? process.env.ANTHROPIC_MODEL;
+    this.model = options.model ?? process.env.ANTHROPIC_MODEL ?? "";
 
     if (!this.apiKey) {
       throw new Error(
         "Anthropic API key not set. Provide via constructor or ANTHROPIC_API_KEY env var.",
+      );
+    }
+
+    if (!this.model) {
+      throw new Error(
+        "Anthropic model not set. Provide via constructor or ANTHROPIC_MODEL env var.",
       );
     }
 
@@ -53,14 +59,7 @@ export class AnthropicProvider implements BaseProvider {
   }
 
   private resolveModel(requestModel?: string): string {
-    const model = requestModel || this.defaultModel;
-    if (!model) {
-      throw new Error(
-        "Model not provided. Set request.model or configure defaultModel/ANTHROPIC_MODEL.",
-      );
-    }
-
-    return model;
+    return requestModel || this.model;
   }
 
   private validateRequest(request: ModelRequest): void {
