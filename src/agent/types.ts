@@ -23,6 +23,31 @@ export type LoopResponse = {
 export const FORMAT_CORRECTION_MESSAGE =
   'Your previous response was not valid JSON. You must respond ONLY with a valid JSON object matching this exact structure: { "thought": string, "action": "continue" | "final" | "tool", "answer": string | null, "tools": [{ "name": string, "input": object }] | null }. No markdown, no extra text, no commentary.';
 
+export const CONTEXT_COMPACTION_THRESHOLD = 0.8;
+
+export const CONTEXT_COMPACTION_SYSTEM_PROMPT = `
+You are compressing a conversation for continued execution by another agent instance.
+Produce a concise but complete summary that preserves only the information needed to continue the task correctly.
+
+Include:
+- the user's current goal
+- important constraints and preferences
+- key facts established so far
+- important tool calls and their results
+- partial work already completed
+- any open questions or unresolved items
+
+Exclude:
+- filler language
+- duplicated details
+- chain-of-thought phrasing
+
+Return plain text only.
+`.trim();
+
+export const CONTEXT_COMPACTION_USER_PROMPT =
+  "Summarize the conversation so far so it can replace all non-system messages while preserving everything necessary to continue the task.";
+
 /**
  * Base system prompt for the reasoning loop (no tools).
  */

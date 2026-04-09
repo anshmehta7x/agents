@@ -6,20 +6,25 @@ import {
   AgentResponse,
   LoopResponse,
   ToolCall,
+  CONTEXT_COMPACTION_SYSTEM_PROMPT,
+  CONTEXT_COMPACTION_THRESHOLD,
+  CONTEXT_COMPACTION_USER_PROMPT,
   FORMAT_CORRECTION_MESSAGE,
   buildLoopSystemPrompt,
   MAX_ITERS,
 } from "./types";
 import { SessionServiceType } from "../sessions/types";
 import { SQLiteSessionService } from "../sessions/sqlite-sessions";
-import { ToolRegistry } from "../tools/tool-registry";
+import { ToolRegistry } from "../tools";
 import {
   ToolNotFoundError,
   ToolInputValidationError,
   ToolExecutionError,
   ToolTimeoutError,
-} from "../tools/errors";
+} from "../tools";
 import { ObservabilityService } from "../observability/observability-service";
+import { context_windows } from "../model/constants";
+import {inbuiltTools} from "../tools/local";
 
 function extractJson(raw: string): string {
   const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
@@ -36,7 +41,7 @@ export class Agent {
   readonly description?: string;
   readonly generationMode: GenerationType;
   private sessionService: SessionService;
-  private toolRegistry?: ToolRegistry;
+  private toolRegistry: ToolRegistry;
   private obs: ObservabilityService;
 
   constructor(
@@ -47,23 +52,141 @@ export class Agent {
     generationMode: GenerationType = GenerationType.GENERATE,
     sessionServiceType: SessionServiceType = SessionServiceType.SQLITE,
     toolRegistry?: ToolRegistry,
+    useInbuiltTools:boolean = true,
   ) {
     this.name = name;
     this.systemPrompt = systemPrompt;
     this.modelRouter = modelRouter;
     this.description = description;
     this.generationMode = generationMode;
-    this.toolRegistry = toolRegistry;
+    if(toolRegistry) {
+      this.toolRegistry = toolRegistry;
+    }
+    else{
+      this.toolRegistry = new ToolRegistry();
+    }
     this.obs = ObservabilityService.getInstance();
     if (sessionServiceType === SessionServiceType.SQLITE) {
       this.sessionService = new SQLiteSessionService();
     } else {
       throw new Error("A session service is required to run the agent.");
     }
+
+    if(useInbuiltTools) {
+      this.toolRegistry.registerAll(inbuiltTools);
+    }
   }
 
   setToolRegistry(registry: ToolRegistry): void {
     this.toolRegistry = registry;
+  }
+
+
+
+  private getContextWindow(): number | null {
+    return context_windows[this.modelRouter.model] ?? null;
+  }
+
+  private estimateTokens(messages: Message[]): number {
+    return messages.reduce((total, message) => {
+      const contentTokens = Math.ceil(message.content.length / 4);
+      return total + contentTokens + 8;
+    }, 0);
+  }
+
+  private shouldCompact(messages: Message[]): boolean {
+    const contextWindow = this.getContextWindow();
+    if (!contextWindow) return false;
+
+    const nonSystemMessages = messages.filter(
+      (message) => message.role !== Role.SYSTEM,
+    );
+
+    if (nonSystemMessages.length <= 1) {
+      return false;
+    }
+
+      // Prevent compaction if the last non-system message is already a summary
+      const lastNonSystem = nonSystemMessages[nonSystemMessages.length - 1];
+      if (lastNonSystem && lastNonSystem.content.startsWith('[Conversation summary]')) {
+        return false;
+      }
+
+    return this.estimateTokens(messages) >=
+      Math.floor(contextWindow * CONTEXT_COMPACTION_THRESHOLD);
+  }
+
+  private async compactMessages(
+    messages: Message[],
+    verbose: boolean,
+    runId: string,
+  ): Promise<Message[]> {
+    const systemMessages = messages.filter(
+      (message) => message.role === Role.SYSTEM,
+    );
+    const nonSystemMessages = messages.filter(
+      (message) => message.role !== Role.SYSTEM,
+    );
+
+    if (nonSystemMessages.length <= 1) {
+      return messages;
+    }
+
+    const response = await this.modelRouter.route(
+      {
+        messages: [
+          {
+            role: Role.SYSTEM,
+            content: CONTEXT_COMPACTION_SYSTEM_PROMPT,
+          },
+          ...nonSystemMessages,
+          {
+            role: Role.USER,
+            content: CONTEXT_COMPACTION_USER_PROMPT,
+          },
+        ],
+      },
+      GenerationType.GENERATE,
+    );
+
+    const summary = response.content?.trim();
+
+    if (!summary) {
+      throw new Error("Failed to compact context: empty summary response.");
+    }
+
+    const beforeTokens = this.estimateTokens(messages);
+    const compactedMessages = [
+      ...systemMessages,
+      {
+        role: Role.USER,
+        content: `[Conversation summary]\n${summary}`,
+      },
+    ];
+    const afterTokens = this.estimateTokens(compactedMessages);
+
+    this.obs.emit(
+      {
+        type: "log",
+        runId,
+        payload: {
+          level: "info",
+          message: "Compacted conversation context",
+          context: {
+            model: this.modelRouter.model,
+            contextWindow: this.getContextWindow(),
+            threshold: CONTEXT_COMPACTION_THRESHOLD,
+            estimatedTokensBefore: beforeTokens,
+            estimatedTokensAfter: afterTokens,
+            messagesBefore: messages.length,
+            messagesAfter: compactedMessages.length,
+          },
+        },
+      },
+      verbose,
+    );
+
+    return compactedMessages;
   }
 
   private async fetchAndParse(
@@ -142,7 +265,7 @@ export class Agent {
     const toolDefs = this.toolRegistry?.listDefinitions();
     const loopSystemPrompt = buildLoopSystemPrompt(toolDefs);
 
-    const messages: Message[] = [
+    let messages: Message[] = [
       {
         role: Role.SYSTEM,
         content: `${loopSystemPrompt}\n${this.systemPrompt}`,
@@ -174,6 +297,28 @@ export class Agent {
     try {
       for (let iteration = 0; iteration < MAX_ITERS; iteration++) {
         const iterStart = Date.now();
+
+        if (this.shouldCompact(messages)) {
+          try {
+            messages = await this.compactMessages(messages, verbose, runId);
+          } catch (error) {
+            this.obs.emit(
+              {
+                type: "log",
+                runId,
+                payload: {
+                  level: "warn",
+                  message: "Context compaction failed; continuing with full history",
+                  context: {
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  },
+                },
+              },
+              verbose,
+            );
+          }
+        }
 
         const { parsed, content, inputTokens, outputTokens, hadFormatRetry } =
           await this.fetchAndParse(messages);
