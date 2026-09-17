@@ -1,10 +1,6 @@
 import OpenAI from "openai"
-import {
-  ModelProvider,
-  ModelProviderError,
-  AuthenticationError,
-  ModelNotFoundError,
-} from "../provider"
+import { ModelProvider } from "../provider"
+import { ModelProviderError, AuthenticationError, ModelNotFoundError } from "../errors"
 import { ModelRequest, ModelResponse, StreamChunk } from "../types"
 
 export class OpenAIProvider implements ModelProvider {
@@ -84,6 +80,7 @@ export class OpenAIProvider implements ModelProvider {
     maxAttempts = 3
   ): Promise<T> {
     let lastError: unknown
+    const maxRetries: number = 5 * 1000; // 5 seconds
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -93,7 +90,7 @@ export class OpenAIProvider implements ModelProvider {
         if (!this.isRetryable(error)) {
           throw this.classifyError(error)
         }
-        await this.sleep(1000 * 2 ** attempt)
+        await this.sleep(Math.min(1000 * 2 ** attempt, maxRetries))
       }
     }
 
