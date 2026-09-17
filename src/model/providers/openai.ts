@@ -7,6 +7,10 @@ export class OpenAIProvider implements ModelProvider {
   private client: OpenAI
   private model: string
 
+  getModel(): string {
+    return this.model
+  }
+
   constructor(model: string, endpoint: string, apiKey: string) {
     if (!apiKey || !endpoint || !model) {
       throw new ModelProviderError("OpenAI provider requires model, endpoint, and apiKey")
