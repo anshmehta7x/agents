@@ -7,6 +7,7 @@ export {
 } from "./errors"
 export type {
   ModelRoutingContext,
+  RoutingFailureMode,
   SmartModelRoutingContext,
   SmartModelRoutingProvider,
   SmartModelRouterProps,

@@ -1,21 +1,24 @@
 import { ModelProvider } from "../../model/provider"
 import { Message, Role } from "../../model/types"
 import { SMART_MODEL_ROUTER_PROMPT } from "../../prompts"
-import { InvalidRouterConfigError } from "../errors"
+import { InvalidRouterConfigError, RoutingError } from "../errors"
 import { ModelRouter } from "../router"
 import {
+  RoutingFailureMode,
   SmartModelRoutingContext,
   SmartModelRoutingProvider,
   SmartModelRouterProps,
 } from "../types"
 
 const DEFAULT_CONSIDERED_MESSAGES = 1
+const DEFAULT_ROUTING_FAILURE_MODE: RoutingFailureMode = "default"
 const ROUTING_MAX_TOKENS = 64
 
 export class SmartModelRouter implements ModelRouter {
   routingProvider: ModelProvider
   targetProviders: SmartModelRoutingProvider[]
   consideredMessages: number
+  onRoutingFailure: RoutingFailureMode
   basePrompt: string
 
   constructor(props: SmartModelRouterProps) {
@@ -24,6 +27,7 @@ export class SmartModelRouter implements ModelRouter {
     this.routingProvider = props.routingProvider
     this.targetProviders = props.targetProviders
     this.consideredMessages = props.consideredMessages ?? DEFAULT_CONSIDERED_MESSAGES
+    this.onRoutingFailure = props.onRoutingFailure ?? DEFAULT_ROUTING_FAILURE_MODE
     this.basePrompt = this.buildSmartProviderPrompt()
   }
 
@@ -64,8 +68,11 @@ export class SmartModelRouter implements ModelRouter {
   }
 
   private parseRouterIndex(raw: string): number {
-    const match = raw.match(/\d+/)
-    return match ? parseInt(match[0], 10) : NaN
+    const trimmed = raw.trim()
+    if (!/^\d+$/.test(trimmed)) {
+      return NaN
+    }
+    return parseInt(trimmed, 10)
   }
 
   private buildSmartProviderPrompt(): string {
@@ -81,6 +88,10 @@ export class SmartModelRouter implements ModelRouter {
     verbose: boolean
   ): { provider: ModelProvider; index: number } {
     if (!Number.isInteger(index) || index < 0 || index >= this.targetProviders.length) {
+      if (this.onRoutingFailure === "throw") {
+        throw new RoutingError(`Invalid target provider index: ${index}`)
+      }
+
       this.log(verbose, `[SmartModelRouter] invalid index ${index}, falling back to 0`)
       return { provider: this.targetProviders[0].provider, index: 0 }
     }

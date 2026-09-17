@@ -14,8 +14,11 @@ export interface SmartModelRoutingProvider {
   selectionCondition: string // when to use this provider
 }
 
+export type RoutingFailureMode = "throw" | "default"
+
 export interface SmartModelRouterProps {
   routingProvider: ModelProvider
   targetProviders: SmartModelRoutingProvider[]
   consideredMessages?: number // how many of the most recent messages to consider for routing
+  onRoutingFailure?: RoutingFailureMode // throw on invalid index, or fall back to index 0
 }
