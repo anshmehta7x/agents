@@ -1,6 +1,6 @@
 import OpenAI from "openai"
 import { ModelProvider } from "../provider"
-import { ModelProviderError, AuthenticationError, ModelNotFoundError } from "../errors"
+import { ModelProviderError, classifyError } from "../errors"
 import { ModelRequest, ModelResponse, StreamChunk } from "../types"
 
 export class OpenAIProvider implements ModelProvider {
@@ -75,7 +75,7 @@ export class OpenAIProvider implements ModelProvider {
         }
       }
     } catch (error) {
-      throw this.classifyError(error)
+      throw classifyError(error, this)
     }
   }
 
@@ -92,13 +92,13 @@ export class OpenAIProvider implements ModelProvider {
       } catch (error) {
         lastError = error
         if (!this.isRetryable(error)) {
-          throw this.classifyError(error)
+          throw classifyError(error, this)
         }
         await this.sleep(Math.min(1000 * 2 ** attempt, maxRetries))
       }
     }
 
-    throw this.classifyError(lastError)
+    throw classifyError(lastError, this)
   }
 
   private isRetryable(error: unknown): boolean {
@@ -109,20 +109,6 @@ export class OpenAIProvider implements ModelProvider {
     return false
   }
 
-  private classifyError(error: unknown): Error {
-    if (error instanceof OpenAI.APIError) {
-      if (error.status === 401) {
-        return new AuthenticationError("Invalid API key for OpenAI provider")
-      }
-      if (error.status === 404) {
-        return new ModelNotFoundError(`Model not found: ${this.model}`)
-      }
-    }
-    if (error instanceof Error) {
-      return new ModelProviderError(error.message)
-    }
-    return new ModelProviderError("Unknown provider error")
-  }
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
