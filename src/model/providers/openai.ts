@@ -2,6 +2,7 @@ import OpenAI from "openai"
 import { ModelProvider } from "../provider"
 import { ModelProviderError, classifyError } from "../errors"
 import { ModelRequest, ModelResponse, StreamChunk } from "../types"
+import { withRetries } from "../utils"
 
 export class OpenAIProvider implements ModelProvider {
   private client: OpenAI
@@ -21,7 +22,7 @@ export class OpenAIProvider implements ModelProvider {
   }
 
   async syncGenerate(request: ModelRequest): Promise<ModelResponse> {
-    return this.withRetries(async () => {
+    return withRetries(async () => {
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: request.messages as OpenAI.Chat.ChatCompletionMessageParam[],
@@ -41,11 +42,11 @@ export class OpenAIProvider implements ModelProvider {
             }
           : null,
       }
-    })
+    }, this)
   }
 
   async *asyncGenerate(request: ModelRequest): AsyncGenerator<StreamChunk, void, unknown> {
-    const stream = await this.withRetries(() =>
+    const stream = await withRetries(() =>
       this.client.chat.completions.create({
         model: this.model,
         messages: request.messages as OpenAI.Chat.ChatCompletionMessageParam[],
@@ -53,7 +54,8 @@ export class OpenAIProvider implements ModelProvider {
         temperature: request.temperature,
         stream: true,
         stream_options: { include_usage: true },
-      })
+      }),
+      this
     )
 
     try {
@@ -77,40 +79,5 @@ export class OpenAIProvider implements ModelProvider {
     } catch (error) {
       throw classifyError(error, this)
     }
-  }
-
-  private async withRetries<T>(
-    operation: () => Promise<T>,
-    maxAttempts = 3
-  ): Promise<T> {
-    let lastError: unknown
-    const maxRetries: number = 5 * 1000; // 5 seconds
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        return await operation()
-      } catch (error) {
-        lastError = error
-        if (!this.isRetryable(error)) {
-          throw classifyError(error, this)
-        }
-        await this.sleep(Math.min(1000 * 2 ** attempt, maxRetries))
-      }
-    }
-
-    throw classifyError(lastError, this)
-  }
-
-  private isRetryable(error: unknown): boolean {
-    if (error instanceof OpenAI.APIError) {
-      const status = error.status ?? 0
-      return status === 429 || status >= 500
-    }
-    return false
-  }
-
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }

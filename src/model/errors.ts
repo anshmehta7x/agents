@@ -1,3 +1,4 @@
+import { ApiError as GoogleApiError } from "@google/genai"
 import { APIError as OpenAIAPIError } from "openai"
 import { ModelProvider } from "./provider"
 
@@ -23,9 +24,9 @@ export class ModelNotFoundError extends ModelProviderError {
 }
 
 export function classifyError(error: unknown, provider: ModelProvider): Error {
-  if (error instanceof OpenAIAPIError) {
+  if (error instanceof OpenAIAPIError || error instanceof GoogleApiError) {
     if (error.status === 401) {
-      return new AuthenticationError("Invalid API key for OpenAI provider")
+      return new AuthenticationError("Invalid API key")
     }
     if (error.status === 404) {
       return new ModelNotFoundError(`Model not found: ${provider.getModel()}`)
